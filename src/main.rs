@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use color_eyre::eyre::Context;
 use glam::{Mat4, Vec3};
 use glow::HasContext;
@@ -103,38 +101,38 @@ fn main() -> color_eyre::Result<()> {
         .build()
         .wrap_err("cannot create window")?;
 
-    let gl_context = window
+    let _gl_context = window
         .gl_create_context()
         .wrap_err("cannot create OpenGL context")?;
 
     let gl = unsafe {
         glow::Context::from_loader_function(|s| {
-            video_subsystem
-                .gl_get_proc_address(s)
-                .expect("no OpenGL proc address") as *const _
+            if let Some(proc_addr) = video_subsystem.gl_get_proc_address(s) {
+                proc_addr as *const _
+            } else {
+                std::ptr::null()
+            }
         })
     };
 
     unsafe { gl.enable(glow::DEPTH_TEST) };
 
     // OBJ setup
-
     let obj_program =
         unsafe { create_shader_program(&gl, OBJ_VERTEX_SHADER_SOURCE, OBJ_FRAGMENT_SHADER_SOURCE) };
-    let (obj_vao, obj_vbo) = unsafe { create_obj_buffers(&gl, &vertex_data) };
+    let (obj_vao, _obj_vbo) = unsafe { create_obj_buffers(&gl, &vertex_data) };
 
     // Edges setup
     let edges_program = unsafe {
         create_shader_program(&gl, OBJ_VERTEX_SHADER_SOURCE, EDGE_FRAGMENT_SHADER_SOURCE)
     };
-    let (edges_vao, edges_vbo) = unsafe { create_edge_buffers(&gl, &edge_data) };
+    let (edges_vao, _edges_vbo) = unsafe { create_edge_buffers(&gl, &edge_data) };
 
     // Axis setup
-
     let axis_program = unsafe {
         create_shader_program(&gl, AXIS_VERTEX_SHADER_SOURCE, AXIS_FRAGMENT_SHADER_SOURCE)
     };
-    let (axis_vao, axis_vbo) = unsafe { create_axis_buffer(&gl) };
+    let (axis_vao, _axis_vbo) = unsafe { create_axis_buffer(&gl) };
 
     let mut camera_theta = 0.0f32;
     let mut camera_phi = 0.0f32;
@@ -165,8 +163,8 @@ fn main() -> color_eyre::Result<()> {
                     ..
                 } => {
                     mouse_is_dragging = true;
-                    mouse_last_x = x as f32;
-                    mouse_last_y = y as f32;
+                    mouse_last_x = x;
+                    mouse_last_y = y;
                 }
                 Event::MouseButtonUp {
                     mouse_btn: MouseButton::Left,
@@ -176,21 +174,16 @@ fn main() -> color_eyre::Result<()> {
                 }
                 Event::MouseMotion { x, y, .. } => {
                     if mouse_is_dragging {
-                        let dx = (x as f32) - mouse_last_x;
-                        let dy = (y as f32) - mouse_last_y;
+                        let dx = x - mouse_last_x;
+                        let dy = y - mouse_last_y;
 
                         camera_theta += dx * 0.005;
                         camera_phi += dy * 0.005;
 
-                        if camera_phi > std::f32::consts::FRAC_PI_2 {
-                            camera_phi = std::f32::consts::FRAC_PI_2;
-                        }
-                        if camera_phi < -std::f32::consts::FRAC_PI_2 {
-                            camera_phi = -std::f32::consts::FRAC_PI_2;
-                        }
+                        camera_phi = camera_phi.clamp(-std::f32::consts::FRAC_PI_2, std::f32::consts::FRAC_PI_2);
 
-                        mouse_last_x = x as f32;
-                        mouse_last_y = y as f32;
+                        mouse_last_x = x;
+                        mouse_last_y = y;
                     }
                 }
                 Event::KeyDown {
