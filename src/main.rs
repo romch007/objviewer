@@ -1,4 +1,7 @@
-use color_eyre::eyre::Context;
+mod errors;
+
+use crate::errors::WrapGlErrorExt;
+use color_eyre::eyre::{bail, Context, ContextCompat};
 use glam::{Mat4, Vec3};
 use glow::HasContext;
 use sdl3::{event::Event, keyboard::Keycode, mouse::MouseButton};
@@ -120,18 +123,18 @@ fn main() -> color_eyre::Result<()> {
 
     // OBJ setup
     let obj_program =
-        create_shader_program(&gl, OBJ_VERTEX_SHADER_SOURCE, OBJ_FRAGMENT_SHADER_SOURCE);
-    let (obj_vao, _obj_vbo) = create_obj_buffers(&gl, &vertex_data);
+        create_shader_program(&gl, OBJ_VERTEX_SHADER_SOURCE, OBJ_FRAGMENT_SHADER_SOURCE)?;
+    let (obj_vao, _obj_vbo) = create_obj_buffers(&gl, &vertex_data)?;
 
     // Edges setup
     let edges_program =
-        create_shader_program(&gl, OBJ_VERTEX_SHADER_SOURCE, EDGE_FRAGMENT_SHADER_SOURCE);
-    let (edges_vao, _edges_vbo) = create_edge_buffers(&gl, &edge_data);
+        create_shader_program(&gl, OBJ_VERTEX_SHADER_SOURCE, EDGE_FRAGMENT_SHADER_SOURCE)?;
+    let (edges_vao, _edges_vbo) = create_edge_buffers(&gl, &edge_data)?;
 
     // Axis setup
     let axis_program =
-        create_shader_program(&gl, AXIS_VERTEX_SHADER_SOURCE, AXIS_FRAGMENT_SHADER_SOURCE);
-    let (axis_vao, _axis_vbo) = create_axis_buffer(&gl);
+        create_shader_program(&gl, AXIS_VERTEX_SHADER_SOURCE, AXIS_FRAGMENT_SHADER_SOURCE)?;
+    let (axis_vao, _axis_vbo) = create_axis_buffer(&gl)?;
 
     let mut camera_theta = 0.0f32;
     let mut camera_phi = 0.0f32;
@@ -255,13 +258,13 @@ fn main() -> color_eyre::Result<()> {
             obj_program,
             &mvp,
             (vertex_data.len() / 3) as i32,
-        );
+        )?;
 
-        draw_edges(&gl, edges_vao, edges_program, &mvp, edge_data.len() as i32);
+        draw_edges(&gl, edges_vao, edges_program, &mvp, edge_data.len() as i32)?;
 
         unsafe { gl.disable(glow::DEPTH_TEST) };
 
-        draw_axes(&gl, axis_vao, axis_program, &mvp);
+        draw_axes(&gl, axis_vao, axis_program, &mvp)?;
 
         unsafe { gl.enable(glow::DEPTH_TEST) };
 
@@ -296,46 +299,45 @@ fn create_shader_program(
     gl: &glow::Context,
     vertex_shader_source: &str,
     fragment_shader_source: &str,
-) -> glow::Program {
+) -> color_eyre::Result<glow::Program> {
     unsafe {
-        let vertex_shader = gl.create_shader(glow::VERTEX_SHADER).unwrap();
+        let vertex_shader = gl.create_shader(glow::VERTEX_SHADER).wrap_gl_error()?;
         gl.shader_source(vertex_shader, vertex_shader_source);
         gl.compile_shader(vertex_shader);
-        assert!(
-            gl.get_shader_compile_status(vertex_shader),
-            "Vertex shader failed to compile"
-        );
 
-        let fragment_shader = gl.create_shader(glow::FRAGMENT_SHADER).unwrap();
+        if gl.get_shader_compile_status(vertex_shader) {
+            bail!("vertex shader failed to compile: {}", gl.get_shader_info_log(vertex_shader));
+        }
+
+        let fragment_shader = gl.create_shader(glow::FRAGMENT_SHADER).wrap_gl_error()?;
         gl.shader_source(fragment_shader, fragment_shader_source);
         gl.compile_shader(fragment_shader);
-        assert!(
-            gl.get_shader_compile_status(fragment_shader),
-            "Fragment shader failed to compile"
-        );
 
-        let program = gl.create_program().unwrap();
+        if gl.get_shader_compile_status(fragment_shader) {
+            bail!("fragment shader failed to compile: {}", gl.get_shader_info_log(fragment_shader));
+        }
+
+        let program = gl.create_program().wrap_gl_error()?;
         gl.attach_shader(program, vertex_shader);
         gl.attach_shader(program, fragment_shader);
         gl.link_program(program);
-        assert!(
-            gl.get_program_link_status(program),
-            "Program failed to link"
-        );
+        if gl.get_program_link_status(program) {
+            bail!("program failed to link: {}", gl.get_program_info_log(program));
+        }
 
-        program
+        Ok(program)
     }
 }
 
 fn create_obj_buffers(
     gl: &glow::Context,
     vertex_data: &[f32],
-) -> (glow::NativeVertexArray, glow::NativeBuffer) {
+) -> color_eyre::Result<(glow::NativeVertexArray, glow::NativeBuffer)> {
     unsafe {
-        let vao = gl.create_vertex_array().unwrap();
+        let vao = gl.create_vertex_array().wrap_gl_error()?;
         gl.bind_vertex_array(Some(vao));
 
-        let vbo = gl.create_buffer().unwrap();
+        let vbo = gl.create_buffer().wrap_gl_error()?;
         gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
         gl.buffer_data_u8_slice(
             glow::ARRAY_BUFFER,
@@ -353,19 +355,19 @@ fn create_obj_buffers(
         );
         gl.enable_vertex_attrib_array(0);
 
-        (vao, vbo)
+        Ok((vao, vbo))
     }
 }
 
 fn create_edge_buffers(
     gl: &glow::Context,
     edge_data: &[f32],
-) -> (glow::NativeVertexArray, glow::NativeBuffer) {
+) -> color_eyre::Result<(glow::NativeVertexArray, glow::NativeBuffer)> {
     unsafe {
-        let vao = gl.create_vertex_array().unwrap();
+        let vao = gl.create_vertex_array().wrap_gl_error()?;
         gl.bind_vertex_array(Some(vao));
 
-        let vbo = gl.create_buffer().unwrap();
+        let vbo = gl.create_buffer().wrap_gl_error()?;
         gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
         gl.buffer_data_u8_slice(
             glow::ARRAY_BUFFER,
@@ -383,7 +385,7 @@ fn create_edge_buffers(
         );
         gl.enable_vertex_attrib_array(0);
 
-        (vao, vbo)
+        Ok((vao, vbo))
     }
 }
 
@@ -398,9 +400,9 @@ const AXIS_DATA: [f32; 36] = [
     0.0, 0.0, 1.0, 0.0, 0.0, 1.0, // end point, color
 ];
 
-fn create_axis_buffer(gl: &glow::Context) -> (glow::NativeVertexArray, glow::NativeBuffer) {
+fn create_axis_buffer(gl: &glow::Context) -> color_eyre::Result<(glow::NativeVertexArray, glow::NativeBuffer)> {
     unsafe {
-        let vbo = gl.create_buffer().expect("create buffer");
+        let vbo = gl.create_buffer().wrap_gl_error()?;
         gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
         gl.buffer_data_u8_slice(
             glow::ARRAY_BUFFER,
@@ -408,7 +410,7 @@ fn create_axis_buffer(gl: &glow::Context) -> (glow::NativeVertexArray, glow::Nat
             glow::STATIC_DRAW,
         );
 
-        let vao = gl.create_vertex_array().expect("create vertex array");
+        let vao = gl.create_vertex_array().wrap_gl_error()?;
         gl.bind_vertex_array(Some(vao));
 
         gl.vertex_attrib_pointer_f32(
@@ -430,7 +432,7 @@ fn create_axis_buffer(gl: &glow::Context) -> (glow::NativeVertexArray, glow::Nat
         gl.enable_vertex_attrib_array(0);
         gl.enable_vertex_attrib_array(1);
 
-        (vao, vbo)
+        Ok((vao, vbo))
     }
 }
 
@@ -440,16 +442,18 @@ fn draw_obj(
     program: glow::Program,
     mvp: &Mat4,
     triangles_count: i32,
-) {
+) -> color_eyre::Result<()> {
     unsafe {
         gl.use_program(Some(program));
 
-        let mvp_location = gl.get_uniform_location(program, "mvp").unwrap();
+        let mvp_location = gl.get_uniform_location(program, "mvp").wrap_err("no location for uniform")?;
 
         gl.uniform_matrix_4_f32_slice(Some(&mvp_location), false, mvp.to_cols_array().as_slice());
 
         gl.bind_vertex_array(Some(vao));
         gl.draw_arrays(glow::TRIANGLES, 0, triangles_count);
+
+        Ok(())
     }
 }
 
@@ -459,30 +463,34 @@ fn draw_edges(
     program: glow::Program,
     mvp: &Mat4,
     line_count: i32,
-) {
+) -> color_eyre::Result<()> {
     unsafe {
         gl.line_width(2.0);
 
         gl.use_program(Some(program));
 
-        let mvp_location = gl.get_uniform_location(program, "mvp").unwrap();
+        let mvp_location = gl.get_uniform_location(program, "mvp").wrap_err("no location for uniform")?;
 
         gl.uniform_matrix_4_f32_slice(Some(&mvp_location), false, mvp.to_cols_array().as_slice());
 
         gl.bind_vertex_array(Some(vao));
         gl.draw_arrays(glow::LINES, 0, line_count);
+
+        Ok(())
     }
 }
 
-fn draw_axes(gl: &glow::Context, vao: glow::NativeVertexArray, program: glow::Program, mvp: &Mat4) {
+fn draw_axes(gl: &glow::Context, vao: glow::NativeVertexArray, program: glow::Program, mvp: &Mat4) -> color_eyre::Result<()> {
     unsafe {
         gl.use_program(Some(program));
 
-        let mvp_location = gl.get_uniform_location(program, "mvp").unwrap();
+        let mvp_location = gl.get_uniform_location(program, "mvp").wrap_err("no location for uniform")?;
 
         gl.uniform_matrix_4_f32_slice(Some(&mvp_location), false, mvp.to_cols_array().as_slice());
 
         gl.bind_vertex_array(Some(vao));
         gl.draw_arrays(glow::LINES, 0, 6);
+
+        Ok(())
     }
 }
