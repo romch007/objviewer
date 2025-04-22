@@ -88,6 +88,7 @@ fn main() -> color_eyre::Result<()> {
     let sdl_context = sdl3::init().wrap_err("cannot init SDL3")?;
     let video_subsystem = sdl_context.video().wrap_err("cannot init video")?;
 
+    println!("using sdl3 {}", sdl3::version::version());
     println!("video driver: {}", video_subsystem.current_video_driver());
 
     let gl_attr = video_subsystem.gl_attr();
@@ -119,20 +120,18 @@ fn main() -> color_eyre::Result<()> {
 
     // OBJ setup
     let obj_program =
-        unsafe { create_shader_program(&gl, OBJ_VERTEX_SHADER_SOURCE, OBJ_FRAGMENT_SHADER_SOURCE) };
-    let (obj_vao, _obj_vbo) = unsafe { create_obj_buffers(&gl, &vertex_data) };
+        create_shader_program(&gl, OBJ_VERTEX_SHADER_SOURCE, OBJ_FRAGMENT_SHADER_SOURCE);
+    let (obj_vao, _obj_vbo) = create_obj_buffers(&gl, &vertex_data);
 
     // Edges setup
-    let edges_program = unsafe {
-        create_shader_program(&gl, OBJ_VERTEX_SHADER_SOURCE, EDGE_FRAGMENT_SHADER_SOURCE)
-    };
-    let (edges_vao, _edges_vbo) = unsafe { create_edge_buffers(&gl, &edge_data) };
+    let edges_program =
+        create_shader_program(&gl, OBJ_VERTEX_SHADER_SOURCE, EDGE_FRAGMENT_SHADER_SOURCE);
+    let (edges_vao, _edges_vbo) = create_edge_buffers(&gl, &edge_data);
 
     // Axis setup
-    let axis_program = unsafe {
-        create_shader_program(&gl, AXIS_VERTEX_SHADER_SOURCE, AXIS_FRAGMENT_SHADER_SOURCE)
-    };
-    let (axis_vao, _axis_vbo) = unsafe { create_axis_buffer(&gl) };
+    let axis_program =
+        create_shader_program(&gl, AXIS_VERTEX_SHADER_SOURCE, AXIS_FRAGMENT_SHADER_SOURCE);
+    let (axis_vao, _axis_vbo) = create_axis_buffer(&gl);
 
     let mut camera_theta = 0.0f32;
     let mut camera_phi = 0.0f32;
@@ -180,7 +179,8 @@ fn main() -> color_eyre::Result<()> {
                         camera_theta += dx * 0.005;
                         camera_phi += dy * 0.005;
 
-                        camera_phi = camera_phi.clamp(-std::f32::consts::FRAC_PI_2, std::f32::consts::FRAC_PI_2);
+                        camera_phi = camera_phi
+                            .clamp(-std::f32::consts::FRAC_PI_2, std::f32::consts::FRAC_PI_2);
 
                         mouse_last_x = x;
                         mouse_last_y = y;
@@ -236,36 +236,34 @@ fn main() -> color_eyre::Result<()> {
 
         let camera_position = Vec3::new(x, y, z);
 
-        unsafe {
-            gl.clear_color(0.5, 0.5, 0.5, 1.0);
-            gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+        unsafe { gl.clear_color(0.5, 0.5, 0.5, 1.0) };
+        unsafe { gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT) };
 
-            let model = Mat4::IDENTITY;
-            let view = Mat4::look_at_rh(camera_position, camera_target, camera_up);
-            let projection = Mat4::perspective_rh_gl(
-                FOV.to_radians(),
-                WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
-                0.1,
-                100.0,
-            );
-            let mvp = projection * view * model;
+        let model = Mat4::IDENTITY;
+        let view = Mat4::look_at_rh(camera_position, camera_target, camera_up);
+        let projection = Mat4::perspective_rh_gl(
+            FOV.to_radians(),
+            WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32,
+            0.1,
+            100.0,
+        );
+        let mvp = projection * view * model;
 
-            draw_obj(
-                &gl,
-                obj_vao,
-                obj_program,
-                &mvp,
-                (vertex_data.len() / 3) as i32,
-            );
+        draw_obj(
+            &gl,
+            obj_vao,
+            obj_program,
+            &mvp,
+            (vertex_data.len() / 3) as i32,
+        );
 
-            draw_edges(&gl, edges_vao, edges_program, &mvp, edge_data.len() as i32);
+        draw_edges(&gl, edges_vao, edges_program, &mvp, edge_data.len() as i32);
 
-            gl.disable(glow::DEPTH_TEST);
+        unsafe { gl.disable(glow::DEPTH_TEST) };
 
-            draw_axes(&gl, axis_vao, axis_program, &mvp);
+        draw_axes(&gl, axis_vao, axis_program, &mvp);
 
-            gl.enable(glow::DEPTH_TEST);
-        };
+        unsafe { gl.enable(glow::DEPTH_TEST) };
 
         window.gl_swap_window();
     }
@@ -294,7 +292,7 @@ fn extract_edges_from_triangles(vertex_data: &[f32]) -> Vec<f32> {
     edge_data
 }
 
-unsafe fn create_shader_program(
+fn create_shader_program(
     gl: &glow::Context,
     vertex_shader_source: &str,
     fragment_shader_source: &str,
@@ -329,7 +327,7 @@ unsafe fn create_shader_program(
     }
 }
 
-unsafe fn create_obj_buffers(
+fn create_obj_buffers(
     gl: &glow::Context,
     vertex_data: &[f32],
 ) -> (glow::NativeVertexArray, glow::NativeBuffer) {
@@ -359,7 +357,7 @@ unsafe fn create_obj_buffers(
     }
 }
 
-unsafe fn create_edge_buffers(
+fn create_edge_buffers(
     gl: &glow::Context,
     edge_data: &[f32],
 ) -> (glow::NativeVertexArray, glow::NativeBuffer) {
@@ -400,7 +398,7 @@ const AXIS_DATA: [f32; 36] = [
     0.0, 0.0, 1.0, 0.0, 0.0, 1.0, // end point, color
 ];
 
-unsafe fn create_axis_buffer(gl: &glow::Context) -> (glow::NativeVertexArray, glow::NativeBuffer) {
+fn create_axis_buffer(gl: &glow::Context) -> (glow::NativeVertexArray, glow::NativeBuffer) {
     unsafe {
         let vbo = gl.create_buffer().expect("create buffer");
         gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
@@ -436,7 +434,7 @@ unsafe fn create_axis_buffer(gl: &glow::Context) -> (glow::NativeVertexArray, gl
     }
 }
 
-unsafe fn draw_obj(
+fn draw_obj(
     gl: &glow::Context,
     vao: glow::NativeVertexArray,
     program: glow::Program,
@@ -455,7 +453,7 @@ unsafe fn draw_obj(
     }
 }
 
-unsafe fn draw_edges(
+fn draw_edges(
     gl: &glow::Context,
     vao: glow::NativeVertexArray,
     program: glow::Program,
@@ -476,12 +474,7 @@ unsafe fn draw_edges(
     }
 }
 
-unsafe fn draw_axes(
-    gl: &glow::Context,
-    vao: glow::NativeVertexArray,
-    program: glow::Program,
-    mvp: &Mat4,
-) {
+fn draw_axes(gl: &glow::Context, vao: glow::NativeVertexArray, program: glow::Program, mvp: &Mat4) {
     unsafe {
         gl.use_program(Some(program));
 
