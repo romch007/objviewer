@@ -1,7 +1,7 @@
 mod errors;
 
 use crate::errors::WrapGlErrorExt;
-use color_eyre::eyre::{bail, Context, ContextCompat};
+use color_eyre::eyre::{Context, ContextCompat, bail};
 use glam::{Mat4, Vec3};
 use glow::HasContext;
 use sdl3::{event::Event, keyboard::Keycode, mouse::MouseButton};
@@ -96,7 +96,7 @@ fn main() -> color_eyre::Result<()> {
 
     let gl_attr = video_subsystem.gl_attr();
     gl_attr.set_context_profile(sdl3::video::GLProfile::Core);
-    gl_attr.set_context_version(3, 2);
+    gl_attr.set_context_version(3, 3);
 
     let window = video_subsystem
         .window("OBJ viewer", WINDOW_WIDTH, WINDOW_HEIGHT)
@@ -305,24 +305,33 @@ fn create_shader_program(
         gl.shader_source(vertex_shader, vertex_shader_source);
         gl.compile_shader(vertex_shader);
 
-        if gl.get_shader_compile_status(vertex_shader) {
-            bail!("vertex shader failed to compile: {}", gl.get_shader_info_log(vertex_shader));
+        if !gl.get_shader_compile_status(vertex_shader) {
+            bail!(
+                "vertex shader failed to compile: {}",
+                gl.get_shader_info_log(vertex_shader)
+            );
         }
 
         let fragment_shader = gl.create_shader(glow::FRAGMENT_SHADER).wrap_gl_error()?;
         gl.shader_source(fragment_shader, fragment_shader_source);
         gl.compile_shader(fragment_shader);
 
-        if gl.get_shader_compile_status(fragment_shader) {
-            bail!("fragment shader failed to compile: {}", gl.get_shader_info_log(fragment_shader));
+        if !gl.get_shader_compile_status(fragment_shader) {
+            bail!(
+                "fragment shader failed to compile: {}",
+                gl.get_shader_info_log(fragment_shader)
+            );
         }
 
         let program = gl.create_program().wrap_gl_error()?;
         gl.attach_shader(program, vertex_shader);
         gl.attach_shader(program, fragment_shader);
         gl.link_program(program);
-        if gl.get_program_link_status(program) {
-            bail!("program failed to link: {}", gl.get_program_info_log(program));
+        if !gl.get_program_link_status(program) {
+            bail!(
+                "program failed to link: {}",
+                gl.get_program_info_log(program)
+            );
         }
 
         Ok(program)
@@ -400,7 +409,9 @@ const AXIS_DATA: [f32; 36] = [
     0.0, 0.0, 1.0, 0.0, 0.0, 1.0, // end point, color
 ];
 
-fn create_axis_buffer(gl: &glow::Context) -> color_eyre::Result<(glow::NativeVertexArray, glow::NativeBuffer)> {
+fn create_axis_buffer(
+    gl: &glow::Context,
+) -> color_eyre::Result<(glow::NativeVertexArray, glow::NativeBuffer)> {
     unsafe {
         let vbo = gl.create_buffer().wrap_gl_error()?;
         gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
@@ -446,7 +457,9 @@ fn draw_obj(
     unsafe {
         gl.use_program(Some(program));
 
-        let mvp_location = gl.get_uniform_location(program, "mvp").wrap_err("no location for uniform")?;
+        let mvp_location = gl
+            .get_uniform_location(program, "mvp")
+            .wrap_err("no location for uniform")?;
 
         gl.uniform_matrix_4_f32_slice(Some(&mvp_location), false, mvp.to_cols_array().as_slice());
 
@@ -469,7 +482,9 @@ fn draw_edges(
 
         gl.use_program(Some(program));
 
-        let mvp_location = gl.get_uniform_location(program, "mvp").wrap_err("no location for uniform")?;
+        let mvp_location = gl
+            .get_uniform_location(program, "mvp")
+            .wrap_err("no location for uniform")?;
 
         gl.uniform_matrix_4_f32_slice(Some(&mvp_location), false, mvp.to_cols_array().as_slice());
 
@@ -480,11 +495,18 @@ fn draw_edges(
     }
 }
 
-fn draw_axes(gl: &glow::Context, vao: glow::NativeVertexArray, program: glow::Program, mvp: &Mat4) -> color_eyre::Result<()> {
+fn draw_axes(
+    gl: &glow::Context,
+    vao: glow::NativeVertexArray,
+    program: glow::Program,
+    mvp: &Mat4,
+) -> color_eyre::Result<()> {
     unsafe {
         gl.use_program(Some(program));
 
-        let mvp_location = gl.get_uniform_location(program, "mvp").wrap_err("no location for uniform")?;
+        let mvp_location = gl
+            .get_uniform_location(program, "mvp")
+            .wrap_err("no location for uniform")?;
 
         gl.uniform_matrix_4_f32_slice(Some(&mvp_location), false, mvp.to_cols_array().as_slice());
 
